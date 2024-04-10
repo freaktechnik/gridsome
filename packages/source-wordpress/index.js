@@ -127,6 +127,9 @@ class WordPressSource {
 
     for (const type in this.restBases.posts) {
       const restBase = this.restBases.posts[type]
+      if (restBase.includes("(?P<")) {
+        continue;
+      }
       const typeName = this.createTypeName(type)
       const posts = getCollection(typeName)
 
