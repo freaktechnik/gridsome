@@ -57,6 +57,9 @@ class WordPressSource {
     const addCollection = actions.addCollection || actions.addContentType
 
     for (const type in data) {
+      if (["wp_global_styles", "nav_menu", "nav_menu_item", "wp_template", "wp_template_part"].includes(type)) {
+        continue;
+      }
       const options = data[type]
 
       this.restBases.posts[type] = trimStart(options.rest_base, '/')
