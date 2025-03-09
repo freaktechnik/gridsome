@@ -1,3 +1,4 @@
+const path = require('path')
 const fs = require('fs-extra')
 const pMap = require('p-map')
 const hirestime = require('hirestime')
@@ -58,12 +59,12 @@ async function runWebpack (app) {
   const compileTime = hirestime()
 
   if (!process.stdout.isTTY) {
-    info(`Compiling assets...`)
+    log(`Compiling assets...`)
   }
 
   const stats = await app.compiler.run()
 
-  info(`Compile assets - ${compileTime(hirestime.S)}s`)
+  log(`Compile assets - ${compileTime(hirestime.S)}s`)
 
   return stats
 }
@@ -93,7 +94,7 @@ async function renderHTML (renderQueue, app, hash) {
 
   worker.end()
 
-  info(`Render HTML (${renderQueue.length} files) - ${timer(hirestime.S)}s`)
+  log(`Render HTML (${renderQueue.length} files) - ${timer(hirestime.S)}s`)
 }
 
 async function processFiles (files) {
@@ -104,7 +105,7 @@ async function processFiles (files) {
     await fs.copy(file.filePath, file.destPath)
   }
 
-  info(`Process files (${totalFiles} files) - ${timer(hirestime.S)}s`)
+  log(`Process files (${totalFiles} files) - ${timer(hirestime.S)}s`)
 }
 
 async function processImages (images, config) {
@@ -114,6 +115,10 @@ async function processImages (images, config) {
   const worker = createWorker('image-processor')
   const totalAssets = images.queue.length
   const totalJobs = chunks.length
+
+  const existingImages = !config.emptyOutputDir
+    ? await fs.readdir(config.imagesDir)
+    : []
 
   let progress = 0
 
@@ -139,4 +144,17 @@ async function processImages (images, config) {
   worker.end()
 
   writeLine(`Process images (${totalAssets} images) - ${timer(hirestime.S)}s\n`)
+
+  // Remove images that existed before this build started but isn't in use.
+  if (config.images.purge && existingImages.length) {
+    const newImages = images.queue.map((c) => path.basename(c.destPath))
+    const extraImages = existingImages.filter((value) => !newImages.includes(value))
+
+    if (extraImages.length) {
+      for (const filename of extraImages) {
+        await fs.remove(path.join(config.imagesDir, filename))
+      }
+      info(`- Deleted ${extraImages.length} images that where no longer in use`)
+    }
+  }
 }

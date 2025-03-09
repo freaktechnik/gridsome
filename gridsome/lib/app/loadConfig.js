@@ -211,22 +211,33 @@ function registerTsExtension() {
   }
 }
 
-function resolveEnv (context) {
-  const env = process.env.NODE_ENV || 'development'
-  const envPath = path.resolve(context, '.env')
-  const envPathByMode = path.resolve(context, `.env.${env}`)
-  const readPath = fs.existsSync(envPathByMode) ? envPathByMode : envPath
+function resolveEnv(context) {
+  const mode = process.env.NODE_ENV || 'development'
+  const envFiles = [
+    /** default file */ `.env`,
+    /** local file */ `.env.local`,
+    /** mode file */ `.env.${mode}`,
+    /** mode local file */ `.env.${mode}.local`
+  ].map(p => path.resolve(context, p))
 
-  let parsed = {}
-  try {
-    parsed = dotenv.parse(fs.readFileSync(readPath, 'utf8'))
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      console.error('There was a problem processing the .env file', err)
+  const variables = {}
+
+  for (const file of envFiles) {
+    try {
+      const parsed = dotenv.parse(fs.readFileSync(file), {
+        debug: !!process.env.DEBUG || undefined
+      })
+
+      Object.assign(variables, parsed)
+    } catch (err) {
+      if (err.code !== 'ENOENT')
+        console.error(`There was a problem processing the ${file} file`, err)
     }
   }
 
-  return parsed
+  // Existing environment variables have precedence
+  // https://12factor.net/config
+  return Object.assign(variables, process.env)
 }
 
 function resolvePkg (context) {
@@ -541,6 +552,7 @@ function normalizeImages (config = {}) {
       defaultQuality: Joi.number().default(75).min(0).max(100),
       backgroundColor: Joi.string().allow(null).default(null),
       defaultBlur: Joi.number().default(defaultPlaceholder.defaultBlur),
+      purge: Joi.boolean().default(true),
       placeholder: Joi.alternatives()
         .default(defaultPlaceholder)
         .try([
